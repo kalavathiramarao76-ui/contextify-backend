@@ -156,9 +156,11 @@ export async function POST(req: NextRequest) {
       const sql = getDB();
       const inputType = type || 'message';
 
+      // Pass analysis as JSON object for JSONB column
+      const analysisJson = JSON.stringify(analysis);
       const inserted = (await sql`
         INSERT INTO contextify_analyses (user_id, input_text, input_type, result)
-        VALUES (${session.userId}, ${text.trim()}, ${inputType}, ${JSON.stringify(analysis)})
+        VALUES (${session.userId}, ${text.trim()}, ${inputType}, ${analysisJson}::jsonb)
         RETURNING id
       `) as Record<string, unknown>[];
 
