@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { v4 as uuidv4 } from 'uuid';
 import { getSession } from '@/lib/auth';
 import { getDB } from '@/lib/db';
 
@@ -156,11 +157,12 @@ export async function POST(req: NextRequest) {
       const sql = getDB();
       const inputType = type || 'message';
 
-      // Pass analysis as JSON object for JSONB column
+      // Generate UUID for id (text column with no default)
+      const analysisId = uuidv4();
       const analysisJson = JSON.stringify(analysis);
       const inserted = (await sql`
-        INSERT INTO contextify_analyses (user_id, input_text, input_type, result)
-        VALUES (${session.userId}, ${text.trim()}, ${inputType}, ${analysisJson}::jsonb)
+        INSERT INTO contextify_analyses (id, user_id, input_text, input_type, result)
+        VALUES (${analysisId}, ${session.userId}, ${text.trim()}, ${inputType}, ${analysisJson}::jsonb)
         RETURNING id
       `) as Record<string, unknown>[];
 
