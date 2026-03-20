@@ -32,12 +32,11 @@ export async function POST(req: NextRequest) {
   try {
     const sql = getDB();
 
-    // Find user by email
-    const users = await sql`
+    const users = (await sql`
       SELECT id, email, password_hash, full_name, tier, analyses_count
       FROM contextify_users
       WHERE email = ${email.toLowerCase()}
-    `;
+    `) as Record<string, unknown>[];
 
     if (users.length === 0) {
       return NextResponse.json({ error: 'Invalid email or password' }, { status: 401, headers: corsHeaders() });
@@ -45,15 +44,13 @@ export async function POST(req: NextRequest) {
 
     const user = users[0];
 
-    // Verify password
-    const valid = await bcrypt.compare(password, user.password_hash);
+    const valid = await bcrypt.compare(password, user.password_hash as string);
     if (!valid) {
       return NextResponse.json({ error: 'Invalid email or password' }, { status: 401, headers: corsHeaders() });
     }
 
-    // Create session token
     const token = uuidv4();
-    const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 days
+    const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
 
     await sql`
       INSERT INTO contextify_sessions (token, user_id, expires_at)

@@ -24,11 +24,11 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
 
   try {
     const sql = getDB();
-    const rows = await sql`
+    const rows = (await sql`
       SELECT id, input_text, input_type, result, is_favorite, created_at
       FROM contextify_analyses
       WHERE id = ${id} AND user_id = ${session.userId}
-    `;
+    `) as Record<string, unknown>[];
 
     if (rows.length === 0) {
       return NextResponse.json({ error: 'Analysis not found' }, { status: 404, headers: corsHeaders() });
@@ -62,11 +62,11 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
 
   try {
     const sql = getDB();
-    const result = await sql`
+    const result = (await sql`
       DELETE FROM contextify_analyses
       WHERE id = ${id} AND user_id = ${session.userId}
       RETURNING id
-    `;
+    `) as Record<string, unknown>[];
 
     if (result.length === 0) {
       return NextResponse.json({ error: 'Analysis not found' }, { status: 404, headers: corsHeaders() });
@@ -91,12 +91,12 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     const sql = getDB();
 
     // Toggle is_favorite
-    const result = await sql`
+    const result = (await sql`
       UPDATE contextify_analyses
       SET is_favorite = NOT is_favorite
       WHERE id = ${id} AND user_id = ${session.userId}
       RETURNING id, is_favorite
-    `;
+    `) as Record<string, unknown>[];
 
     if (result.length === 0) {
       return NextResponse.json({ error: 'Analysis not found' }, { status: 404, headers: corsHeaders() });

@@ -26,17 +26,17 @@ export async function GET(req: NextRequest) {
 
   try {
     const sql = getDB();
-    const analyses = await sql`
+    const analyses = (await sql`
       SELECT id, input_text, input_type, result, is_favorite, created_at
       FROM contextify_analyses
       WHERE user_id = ${session.userId}
       ORDER BY created_at DESC
       LIMIT ${limit} OFFSET ${offset}
-    `;
+    `) as Record<string, unknown>[];
 
-    const total = await sql`
+    const totalRows = (await sql`
       SELECT COUNT(*) as count FROM contextify_analyses WHERE user_id = ${session.userId}
-    `;
+    `) as Record<string, unknown>[];
 
     return NextResponse.json(
       {
@@ -48,7 +48,7 @@ export async function GET(req: NextRequest) {
           isFavorite: a.is_favorite,
           createdAt: a.created_at,
         })),
-        total: parseInt(total[0].count, 10),
+        total: parseInt(String(totalRows[0].count), 10),
         limit,
         offset,
       },

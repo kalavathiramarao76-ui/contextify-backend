@@ -23,11 +23,11 @@ export async function GET(req: NextRequest) {
 
   try {
     const sql = getDB();
-    const users = await sql`
+    const users = (await sql`
       SELECT id, email, full_name, tier, analyses_count
       FROM contextify_users
       WHERE id = ${session.userId}
-    `;
+    `) as Record<string, unknown>[];
 
     if (users.length === 0) {
       return NextResponse.json({ user: null }, { status: 200, headers: corsHeaders() });

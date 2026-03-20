@@ -156,13 +156,13 @@ export async function POST(req: NextRequest) {
       const sql = getDB();
       const inputType = type || 'message';
 
-      const inserted = await sql`
+      const inserted = (await sql`
         INSERT INTO contextify_analyses (user_id, input_text, input_type, result)
         VALUES (${session.userId}, ${text.trim()}, ${inputType}, ${JSON.stringify(analysis)})
         RETURNING id
-      `;
+      `) as Record<string, unknown>[];
 
-      savedAnalysisId = inserted[0]?.id ?? null;
+      savedAnalysisId = (inserted[0]?.id as string) ?? null;
 
       // Increment analyses_count
       await sql`

@@ -8,7 +8,6 @@ export interface SessionUser {
 }
 
 export async function getSession(request: NextRequest): Promise<SessionUser | null> {
-  // Try cookie first, then Authorization header
   let token: string | null = null;
 
   const cookie = request.cookies.get('ctx_session');
@@ -25,21 +24,21 @@ export async function getSession(request: NextRequest): Promise<SessionUser | nu
 
   try {
     const sql = getDB();
-    const rows = await sql`
+    const rows = (await sql`
       SELECT s.user_id, u.email, u.tier
       FROM contextify_sessions s
       JOIN contextify_users u ON u.id = s.user_id
       WHERE s.token = ${token}
         AND s.expires_at > NOW()
-    `;
+    `) as Record<string, unknown>[];
 
     if (!rows || rows.length === 0) return null;
 
     const row = rows[0];
     return {
-      userId: row.user_id,
-      email: row.email,
-      tier: row.tier,
+      userId: row.user_id as string,
+      email: row.email as string,
+      tier: row.tier as string,
     };
   } catch {
     return null;
