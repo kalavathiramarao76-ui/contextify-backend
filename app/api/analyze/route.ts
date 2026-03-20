@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getSession } from '@/lib/auth';
+import { getDB } from '@/lib/db';
 
 const GROQ_API_URL = 'https://api.groq.com/openai/v1/chat/completions';
 const MODEL = 'llama-3.3-70b-versatile';
@@ -17,7 +19,7 @@ Be thorough. Flag every manipulation tactic: gaslighting, DARVO, love bombing, g
 
 IMPORTANT: Return ONLY valid JSON, no markdown, no explanation outside the JSON object.`;
 
-// Simple in-memory rate limiter: 20 req/min per IP
+// Simple in-memory rate limiter: 20 req/min per IP (for unauthenticated users)
 const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
 
 function checkRateLimit(ip: string): boolean {
@@ -50,16 +52,22 @@ export async function OPTIONS() {
 }
 
 export async function POST(req: NextRequest) {
-  const ip =
-    req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
-    req.headers.get('x-real-ip') ||
-    '127.0.0.1';
+  // Try to get authenticated session
+  const session = await getSession(req);
 
-  if (!checkRateLimit(ip)) {
-    return NextResponse.json(
-      { error: 'Rate limit exceeded. Max 20 requests per minute.' },
-      { status: 429, headers: corsHeaders() }
-    );
+  // For unauthenticated requests, apply IP-based rate limiting
+  if (!session) {
+    const ip =
+      req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
+      req.headers.get('x-real-ip') ||
+      '127.0.0.1';
+
+    if (!checkRateLimit(ip)) {
+      return NextResponse.json(
+        { error: 'Rate limit exceeded. Max 20 requests per minute. Sign in for higher limits.' },
+        { status: 429, headers: corsHeaders() }
+      );
+    }
   }
 
   let body: { text?: string; type?: string };
@@ -141,5 +149,37 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  return NextResponse.json(analysis, { status: 200, headers: corsHeaders() });
+  // If user is logged in, save analysis to DB and increment count
+  let savedAnalysisId: string | null = null;
+  if (session) {
+    try {
+      const sql = getDB();
+      const inputType = type || 'message';
+
+      const inserted = await sql`
+        INSERT INTO contextify_analyses (user_id, input_text, input_type, result)
+        VALUES (${session.userId}, ${text.trim()}, ${inputType}, ${JSON.stringify(analysis)})
+        RETURNING id
+      `;
+
+      savedAnalysisId = inserted[0]?.id ?? null;
+
+      // Increment analyses_count
+      await sql`
+        UPDATE contextify_users
+        SET analyses_count = analyses_count + 1
+        WHERE id = ${session.userId}
+      `;
+    } catch (err) {
+      // Don't fail the request if saving fails — still return analysis
+      console.error('Failed to save analysis:', err);
+    }
+  }
+
+  const responsePayload = {
+    ...(analysis as object),
+    ...(savedAnalysisId ? { analysisId: savedAnalysisId, saved: true } : { saved: false }),
+  };
+
+  return NextResponse.json(responsePayload, { status: 200, headers: corsHeaders() });
 }
